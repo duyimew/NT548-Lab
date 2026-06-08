@@ -25,7 +25,6 @@ env:
   TRIVY_DISABLE_VEX_NOTICE: "true"
   SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
   SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-  SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
 
 jobs:
   detect-changes:
@@ -128,33 +127,6 @@ jobs:
           chmod +x mvnw
           ./mvnw -B test --no-transfer-progress
 
-      - name: SonarCloud scan
-        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_ORGANIZATION != '' }}
-        uses: SonarSource/sonarqube-scan-action@v5
-        env:
-          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dsonar.projectKey=${{ github.repository_owner }}_${{ github.event.repository.name }}_${{ matrix.name }}
-            -Dsonar.projectName=${{ matrix.name }}
-            -Dsonar.organization=${{ env.SONAR_ORGANIZATION }}
-            -Dsonar.sources=src/main/java
-            -Dsonar.tests=src/test/java
-            -Dsonar.java.binaries=target/classes
-            -Dsonar.projectBaseDir=${{ matrix.dir }}
-
-      - name: Skip Sonar scan
-        if: ${{ env.SONAR_TOKEN == '' }}
-        run: echo "SONAR_TOKEN is not configured; skipping Sonar scan for ${{ matrix.name }}."
-
-      - name: Skip SonarQube scan on GitHub-hosted runner
-        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_ORGANIZATION == '' && env.SONAR_HOST_URL != '' }}
-        run: echo "SonarQube self-hosted scan runs in the sonarqube-scan-self-hosted job."
-
-      - name: Skip Sonar scan because target is not configured
-        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_ORGANIZATION == '' && env.SONAR_HOST_URL == '' }}
-        run: echo "SONAR_TOKEN is configured, but SONAR_ORGANIZATION or SONAR_HOST_URL is missing; skipping Sonar scan for ${{ matrix.name }}."
-
       - name: Build Docker image locally
         run: |
           docker build \
@@ -175,7 +147,7 @@ jobs:
     name: SonarQube self-hosted scan ${{ matrix.name }}
     runs-on: self-hosted
     needs: detect-changes
-    if: needs.detect-changes.outputs.count != '0' && vars.SONAR_ORGANIZATION == ''
+    if: needs.detect-changes.outputs.count != '0'
 
     permissions:
       contents: read
@@ -192,6 +164,8 @@ jobs:
       - name: Checkout source
         if: ${{ env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' }}
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Java
         if: ${{ env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' }}
@@ -212,7 +186,7 @@ jobs:
           chmod +x mvnw
           ./mvnw -B test --no-transfer-progress
 
-      - name: SonarQube scan from self-hosted runner
+      - name: SonarQube scan
         if: ${{ env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' }}
         uses: SonarSource/sonarqube-scan-action@v5
         env:
